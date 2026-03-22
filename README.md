@@ -1,7 +1,8 @@
 # 🏥 Insurance Claims Pipeline
 
 > End-to-end PySpark + Databricks pipeline implementing Medallion Architecture
-> for insurance claims data — from raw ingestion to analytics-ready aggregations.
+> for Brazilian auto insurance data — from raw SUSEP AUTOSEG ingestion to
+> sinistralidade analytics by region.
 
 [![Python](https://img.shields.io/badge/Python-3.10+-blue.svg)](https://python.org)
 [![PySpark](https://img.shields.io/badge/PySpark-3.4+-orange.svg)](https://spark.apache.org)
@@ -14,47 +15,34 @@
 ## 📋 Overview
 
 This project implements a production-grade data pipeline processing Brazilian
-insurance market data from [SUSEP](https://www.susep.gov.br/dadosabertos)
-(Superintendência de Seguros Privados), Brazil's insurance regulatory authority.
+auto insurance data from [SUSEP AUTOSEG](https://dados.gov.br/dataset/dados-estatisticos-do-seguro-de-automoveis-autoseg)
+— the open dataset published by Brazil's insurance regulatory authority.
 
-The pipeline follows the **Medallion Architecture** (Bronze → Silver → Gold),
-transforming raw regulatory CSV files into analytics-ready aggregated tables
-using PySpark on Databricks with Delta Lake as the storage layer.
+The pipeline follows **Medallion Architecture** (Bronze → Silver → Gold),
+transforming raw regulatory CSV files into sinistralidade analytics
+(claims-to-premium ratio) by region, using PySpark on Databricks with
+Delta Lake as the storage layer.
 
 **Why this project?**
 After working on a large-scale insurance data POC at IBM — validating a
-Databricks + PySpark architecture capable of processing billions of records
-for one of Brazil's largest insurance groups — I built this pipeline to
-demonstrate the full end-to-end pattern in a reproducible, documented way.
+Databricks + PySpark architecture processing billions of records for one of
+Brazil's largest insurance groups — I built this pipeline to demonstrate
+the full end-to-end pattern in a reproducible, documented way using real
+public data from the same industry.
 
 ---
 
 ## 🏗️ Architecture
 
-```
+![Architecture](architecture/diagram.svg)
 
-┌─────────────────────────────────────────────────────────────────┐
-│                    MEDALLION ARCHITECTURE                        │
-├──────────────┬──────────────────┬──────────────┬───────────────┤
-│   SOURCE     │     BRONZE       │    SILVER    │     GOLD      │
-│              │                  │              │               │
-│ SUSEP Open   │  Raw Ingestion   │  Cleaned +   │  Aggregated   │
-│ Data (CSV)   │  → Delta Lake    │  Validated   │  Analytics    │
-│              │                  │  → Delta     │  → Delta      │
-│  Regulatory  │  No transforms   │              │               │
-│  claims,     │  Schema applied  │  Nulls       │  Claims by    │
-│  premiums,   │  Partitioned by  │  handled     │  region       │
-│  coverage    │  year/month      │  Deduped     │  Time series  │
-│              │                  │  Type cast   │  KPIs         │
-└──────────────┴──────────────────┴──────────────┴───────────────┘
 ```
-
-**Data flow:**
-```
-SUSEP API/CSV → Bronze (raw Delta) → Silver (clean Delta) → Gold (aggregated Delta)
-                     ↓                      ↓                       ↓
-               Full fidelity          Business-ready          Analytics-ready
-               No data loss           Validated               Serving layer
+Source (SUSEP)     Bronze              Silver              Gold
+──────────────     ──────────────      ──────────────      ──────────────
+PremReg.csv    →   Raw Delta       →   Typed + Joined  →   Sinistralidade
+SinReg.csv         Schema enforced     Validated           by region
+auto_reg.csv       Partition by        Quarantine          Time series
+(+ aux tables)     semestre            pattern             KPI tables
 ```
 
 ---
@@ -64,11 +52,10 @@ SUSEP API/CSV → Bronze (raw Delta) → Silver (clean Delta) → Gold (aggregat
 | Layer | Technology | Why |
 |---|---|---|
 | **Processing** | PySpark 3.4+ | Distributed processing, scales to billions of records |
-| **Platform** | Databricks | Unified analytics, native Delta Lake support, job scheduling |
-| **Storage** | Delta Lake | ACID transactions, time travel, schema enforcement |
-| **Source** | SUSEP Open Data | Real Brazilian insurance regulatory data, publicly available |
+| **Platform** | Databricks | Unified analytics, native Delta Lake support |
+| **Storage** | Delta Lake | ACID transactions, time travel, idempotent writes |
+| **Source** | SUSEP AUTOSEG | Real Brazilian auto insurance regulatory data |
 | **Language** | Python 3.10+ | Pipeline orchestration and transformation logic |
-| **Format** | Parquet (Delta) | Columnar storage, optimal for analytical workloads |
 
 ---
 
@@ -77,38 +64,67 @@ SUSEP API/CSV → Bronze (raw Delta) → Silver (clean Delta) → Gold (aggregat
 ```
 insurance-claims-pipeline/
 │
-├── README.md                        ← You are here
-├── LICENSE
-│
+├── README.md
 ├── architecture/
-│   └── diagram.png                  ← Architecture diagram
+│   └── diagram.svg                  ← Architecture diagram
 │
 ├── notebooks/
-│   ├── 01_bronze_ingestion.py       ← Raw data ingestion to Delta Lake
-│   ├── 02_silver_transformation.py  ← Cleaning, validation, deduplication
-│   └── 03_gold_aggregation.py       ← Business aggregations and KPIs
+│   ├── 01_bronze_ingestion.py       ← Raw ingestion to Delta Lake
+│   ├── 02_silver_transformation.py  ← Typing, joining, quarantine
+│   └── 03_gold_aggregation.py       ← Sinistralidade and KPIs
 │
 ├── src/
-│   ├── __init__.py
-│   ├── ingestion.py                 ← Ingestion functions
-│   ├── transformations.py           ← Transformation logic
-│   ├── quality_checks.py            ← Data quality assertions
-│   └── config.py                    ← Environment configuration
+│   ├── ingestion.py
+│   ├── transformations.py
+│   └── quality_checks.py
 │
 ├── data/
-│   └── sample/                      ← Small sample for local testing
-│       └── claims_sample.csv
+│   └── sample/
 │
-├── tests/
-│   ├── test_ingestion.py
-│   ├── test_transformations.py
-│   └── test_quality_checks.py
-│
-├── docs/
-│   └── decisions.md                 ← Architecture decision records
-│
-└── requirements.txt
+└── docs/
+    └── decisions.md
 ```
+
+---
+
+## 📊 Data Source — SUSEP AUTOSEG
+
+**SUSEP AUTOSEG** is the official Brazilian auto insurance statistics system,
+published by SUSEP (Superintendência de Seguros Privados).
+
+**Main tables used:**
+
+| File | Records | Description |
+|---|---|---|
+| `PremReg.csv` | ~205 | Premiums and vehicle exposure by region |
+| `SinReg.csv` | ~200 | Claims and indemnizations by region |
+
+**Auxiliary/dimension tables:**
+
+| File | Description |
+|---|---|
+| `auto_reg.csv` | Region codes and descriptions (41 regions) |
+| `auto_cob.csv` | Coverage types (Compreensiva, Incêndio e roubo, etc.) |
+| `auto_cat.csv` | Vehicle categories (Passeio nacional, importado, etc.) |
+| `auto2_vei.csv` | Vehicle models (~8,500 entries) |
+| `auto2_grupo.csv` | Vehicle model groups |
+| `auto_cau.csv` | Claim causes (Roubo, Colisão parcial, Perda total, etc.) |
+| `auto_sexo.csv` | Driver gender (M, F, Jurídica) |
+| `auto_idade.csv` | Driver age groups |
+
+**Key fields in `PremReg.csv`:**
+- `regiao` — region code (01–41, matches SUSEP regional breakdown)
+- `descricao` — region name (e.g. "RS - Met. Porto Alegre e Caxias do Sul")
+- `tipo_prem` — premium type (APP, CASCO, etc.)
+- `exposicao` — vehicle-months exposed (proxy for number of insured vehicles)
+- `premios` — total premiums collected in BRL
+- `is_media` — average insured amount in BRL
+
+**Key fields in `SinReg.csv`:**
+- `regiao` — region code (joins with PremReg on `regiao` + `tipo`)
+- `tipo_sin` — claim type (mirrors `tipo_prem` for join)
+- `numSinistros` — number of claims occurred
+- `indenizacoes` — total indemnizations paid in BRL
 
 ---
 
@@ -116,146 +132,82 @@ insurance-claims-pipeline/
 
 ### Bronze — Raw Ingestion
 
-Ingests SUSEP CSV files into Delta Lake with minimal transformation.
-The goal is full fidelity: every raw record preserved, schema enforced,
-data partitioned for efficient downstream processing.
+Ingests `PremReg.csv` and `SinReg.csv` into separate Delta tables with
+no business transformation. Two key design decisions at this layer:
+
+**1. Numeric fields as StringType:**
+SUSEP files use comma as decimal separator (`369319,44`), which silently
+corrupts data if cast to DoubleType at read time. Reading as String at
+Bronze and applying `regexp_replace` at Silver is the safe pattern.
+
+**2. Semestre as injected metadata:**
+Source files have no date column. The reference period ("2019S2") is
+injected at ingestion time and used as the partition key — enabling
+idempotent re-runs via `replaceWhere`.
 
 ```python
-# Key behavior:
-# - Reads CSV with schema inference + explicit override for known types
-# - Adds ingestion metadata (ingested_at, source_file)
-# - Writes as Delta, partitioned by year and month
-# - Idempotent: re-running won't duplicate data
-
-df = (spark.read
-    .option("header", "true")
-    .option("inferSchema", "false")
-    .schema(bronze_schema)
-    .csv(source_path))
-
-df_with_metadata = df.withColumn("ingested_at", current_timestamp()) \
-                     .withColumn("source_file", lit(source_path))
-
-df_with_metadata.write \
-    .format("delta") \
-    .mode("append") \
-    .partitionBy("year", "month") \
-    .save(bronze_path)
+# Idempotent write: overwrites only the current semestre partition
+df.write.format("delta")
+  .mode("overwrite")
+  .option("replaceWhere", f"semestre = '{semestre}'")
+  .partitionBy("semestre")
+  .save(bronze_path)
 ```
 
-### Silver — Transformation & Validation
+### Silver — Transformation & Join
 
-Applies business rules, handles nulls, removes duplicates, and enforces
-data types. Records that fail quality checks are quarantined, not dropped.
+Type casting with Brazilian locale handling, join between Prêmios and
+Sinistros on `regiao`, and quarantine of invalid records.
 
 ```python
-# Key transformations:
-# - Null handling: critical columns flagged, non-critical filled with defaults
-# - Deduplication: based on claim_id + reference_date composite key
-# - Type casting: amounts to Decimal(18,2), dates to DateType
-# - Quarantine: invalid records written to separate _quarantine table
+# Brazilian decimal: comma → dot before casting
+col_numeric = regexp_replace(col("premios"), ",", ".").cast(DoubleType())
 
-df_silver = (df_bronze
-    .dropDuplicates(["claim_id", "reference_date"])
-    .withColumn("claim_amount",
-        col("claim_amount").cast(DecimalType(18, 2)))
-    .withColumn("reference_date",
-        to_date(col("reference_date"), "yyyy-MM-dd"))
-    .filter(col("claim_id").isNotNull()))
+# Join: one row per region + coverage type with both premium and claim data
+df_silver = df_premios.join(df_sinistros, on=["regiao", "semestre"], how="left")
 ```
 
-### Gold — Analytics & Aggregations
+### Gold — Sinistralidade Analytics
 
-Produces business-ready aggregated tables optimized for analytical queries.
-No raw data here — only derived metrics and KPIs.
+The key metric: **sinistralidade** = total indemnizations / total premiums.
+A ratio above 1.0 means the insurer paid out more than it collected — a
+critical signal for pricing and risk teams.
 
 ```python
-# Aggregations produced:
-# - claims_by_region: total claims and amounts grouped by state
-# - claims_time_series: monthly volume and trend metrics
-# - coverage_summary: policy coverage distribution by product type
-
-claims_by_region = (df_silver
-    .groupBy("state", "year", "month")
-    .agg(
-        count("claim_id").alias("total_claims"),
-        sum("claim_amount").alias("total_amount"),
-        avg("claim_amount").alias("avg_claim_amount"),
-        countDistinct("policy_id").alias("distinct_policies")
-    ))
+df_gold = df_silver.withColumn(
+    "sinistralidade",
+    col("indenizacoes") / col("premios")
+)
 ```
 
 ---
 
 ## ⚙️ Key Technical Decisions
 
-### 1. Delta Lake over plain Parquet
+### 1. Two Delta tables at Bronze (not one wide table)
 
-**Decision:** Use Delta Lake format instead of raw Parquet for all layers.
+`PremReg` and `SinReg` have different grain structures and are joined
+at Silver after proper type casting. Merging them at Bronze would mix
+raw and transformed data, violating the Bronze principle of full fidelity.
 
-**Why:** Delta provides ACID transactions, which means a failed pipeline run
-won't corrupt the table. It also enables time travel — being able to query
-the state of data at any past point in time is critical for regulated
-industries like insurance where auditability matters.
+### 2. Quarantine over hard drops
 
-**Trade-off:** Slightly higher storage overhead from Delta transaction logs.
-Acceptable given the reliability guarantees.
+Invalid records at Silver are written to a `_quarantine` Delta table with
+a `failure_reason` column — not silently dropped. In insurance data, a
+dropped claim represents real money and a real event.
 
----
+### 3. Semestre as injected partition key
 
-### 2. Medallion over flat staging
+Source files carry no date column. Rather than parsing dates from file
+names (fragile), we inject `SEMESTRE` as an explicit config parameter.
+This makes the partition scheme transparent, auditable, and testable.
 
-**Decision:** Implement Bronze → Silver → Gold instead of a single
-transform-on-ingest pattern.
+### 4. StringType numerics at Bronze
 
-**Why:** Separating raw from clean from aggregated means: (a) you never
-lose the original data, (b) you can re-run transformations without
-re-ingesting, (c) downstream consumers can choose the right layer
-for their use case.
-
-**Trade-off:** More storage, more complexity. Worth it for any pipeline
-where data quality issues are expected from the source.
-
----
-
-### 3. Quarantine pattern over hard drops
-
-**Decision:** Invalid records are written to a `_quarantine` Delta table
-instead of being silently dropped.
-
-**Why:** Dropping records silently hides data quality problems.
-The quarantine table makes failures visible, traceable, and recoverable.
-In insurance data, a "dropped" claim could represent real money.
-
----
-
-### 4. Partition by year/month
-
-**Decision:** Partition Bronze and Silver tables by `year` and `month`.
-
-**Why:** SUSEP data is queried primarily in time ranges.
-Partition pruning reduces data scanned dramatically on filtered queries —
-a query for "all 2024 claims" scans only 12 partitions instead of
-the full table.
-
----
-
-## 📊 Data Source
-
-**SUSEP Open Data** — Superintendência de Seguros Privados
-- URL: https://www.susep.gov.br/dadosabertos
-- License: Open Government Data (Dados Abertos)
-- Format: CSV, updated periodically
-- Content: Insurance claims, premiums, coverage, and market statistics
-  for the Brazilian insurance sector
-
-The data includes fields such as:
-- `claim_id` — unique claim identifier
-- `state` — Brazilian state (UF)
-- `product_type` — insurance product category
-- `claim_amount` — claim value in BRL
-- `reference_date` — competency date
-- `policy_id` — associated policy
+Brazilian regulatory files use comma decimals. Casting at read time with
+`inferSchema=True` or `DoubleType` produces silent nulls. Reading as
+String and converting explicitly at Silver makes the transformation
+visible, testable, and recoverable if the format changes.
 
 ---
 
@@ -263,58 +215,68 @@ The data includes fields such as:
 
 ### Prerequisites
 
-- Databricks workspace (Community Edition works for testing)
-- Python 3.10+
-- PySpark 3.4+
+- Databricks account (Community Edition works — free)
+- Runtime: DBR 13.x LTS (includes PySpark 3.4 + Delta Lake)
 
-### Option 1 — Databricks (recommended)
+### Storage — Unity Catalog Volumes
 
-1. Clone this repository
-2. Import notebooks from `/notebooks/` into your Databricks workspace
-3. Configure the paths in `src/config.py`:
-```python
-BRONZE_PATH = "dbfs:/user/your_name/insurance/bronze"
-SILVER_PATH = "dbfs:/user/your_name/insurance/silver"
-GOLD_PATH   = "dbfs:/user/your_name/insurance/gold"
-SOURCE_PATH = "dbfs:/user/your_name/insurance/raw"
+This pipeline uses **Databricks Unity Catalog Volumes** for storage —
+the modern, governance-ready alternative to legacy DBFS paths.
+
 ```
-4. Upload SUSEP CSV files to `SOURCE_PATH`
-5. Run notebooks in order: `01` → `02` → `03`
+Catalog  : project_pipeline_databricks
+Schema   : default
+Volume   : pipeline_databricks_project
 
-### Option 2 — Local (for development)
+Source files:
+  /Volumes/.../PremReg.csv       ← uploaded from SUSEP AUTOSEG
+  /Volumes/.../SinReg.csv        ← uploaded from SUSEP AUTOSEG
 
-```bash
-# Clone the repo
-git clone https://github.com/Luciano-A-Vilete/insurance-claims-pipeline.git
-cd insurance-claims-pipeline
-
-# Install dependencies
-pip install -r requirements.txt
-
-# Run with sample data
-python src/ingestion.py --source data/sample/claims_sample.csv --mode local
-
-# Run tests
-pytest tests/
+Bronze output:
+  /Volumes/.../bronze/premios/   ← Delta table, partitioned by semestre
+  /Volumes/.../bronze/sinistros/ ← Delta table, partitioned by semestre
 ```
+
+Unity Catalog Volumes provide fine-grained access control, data lineage,
+and auditability — important properties in regulated industries like insurance.
+
+### Steps
+
+1. **Create a cluster** in Databricks (Runtime 13.x LTS)
+
+2. **Upload source files** to your Unity Catalog Volume:
+   - `Catalog → your volume → Upload`
+   - Upload `PremReg.csv` and `SinReg.csv`
+
+3. **Import notebooks** from `/notebooks/` into your Databricks workspace
+
+4. **Set `SEMESTRE`** in notebook cell 1 to match your file's reference period
+
+5. **Run in order:** `01` → `02` → `03`
+
+### Download source data
+
+```
+https://dados.gov.br/dataset/dados-estatisticos-do-seguro-de-automoveis-autoseg
+```
+
+Select any available semester. The pipeline handles any AUTOSEG release
+from 2019 onward.
 
 ---
 
 ## ✅ Data Quality Checks
 
-The pipeline includes assertions at the Silver layer for:
+Applied at Silver layer:
 
 | Check | Column | Rule |
 |---|---|---|
-| Not null | `claim_id` | Zero nulls allowed |
-| Not null | `reference_date` | Zero nulls allowed |
-| Range | `claim_amount` | Must be > 0 |
-| Valid values | `state` | Must be a valid Brazilian UF |
-| Uniqueness | `claim_id` + `reference_date` | No duplicates |
-| Referential | `product_type` | Must exist in reference table |
-
-Failed records are written to `_quarantine` with a `failure_reason` column
-for investigation and reprocessing.
+| Not null | `regiao` | Zero nulls allowed |
+| Not null | `semestre` | Zero nulls allowed |
+| Range | `premios` | Must be > 0 |
+| Range | `indenizacoes` | Must be >= 0 |
+| Range | `sinistralidade` | Alert if > 1.5 (potential data issue) |
+| Referential | `regiao` | Must exist in `auto_reg` dimension table |
 
 ---
 
@@ -322,20 +284,20 @@ for investigation and reprocessing.
 
 | Metric | Value |
 |---|---|
-| Source records processed | ~2M rows (full SUSEP dataset) |
-| Bronze → Silver pass rate | ~97% (3% quarantined for investigation) |
-| Gold aggregations produced | 3 analytical tables |
-| Sample data processing time | < 2 min (local), < 30 sec (Databricks cluster) |
+| Source files processed | 2 (PremReg + SinReg) per semester |
+| Total records per semester | ~405 (205 premium + 200 claims) |
+| Gold table: sinistralidade by region | 41 regions × coverage types |
+| Processing time (Databricks Community) | < 2 minutes end-to-end |
 
 ---
 
 ## 🗺️ Roadmap
 
-- [ ] Add Databricks Workflow for scheduled execution
-- [ ] Implement schema evolution handling (new SUSEP columns)
+- [ ] Add `auto_reg` dimension join at Silver for enriched region descriptions
+- [ ] Extend to multi-semester: track sinistralidade trends over time
 - [ ] Add Great Expectations for richer data quality profiling
-- [ ] Build a simple Streamlit dashboard on top of the Gold layer
-- [ ] Extend to multi-cloud: replicate Gold layer to AWS S3 via cross-cloud sync
+- [ ] Build Streamlit dashboard on top of Gold layer
+- [ ] Extend to multi-cloud: sync Gold layer to AWS S3
 
 ---
 
@@ -344,13 +306,13 @@ for investigation and reprocessing.
 Built by [Luciano Vilete](https://linkedin.com/in/luciano-vilete) — Senior Data Engineer
 with 6 years of experience building data pipelines across GCP, AWS, and Azure.
 
-This project is part of my public portfolio demonstrating production-grade
-data engineering patterns with PySpark and Databricks.
-
-Feel free to open issues, suggest improvements, or reach out on LinkedIn.
+This project demonstrates production-grade data engineering patterns with
+PySpark and Databricks, using real Brazilian insurance regulatory data.
 
 ---
 
 ## 📄 License
 
 MIT License — see [LICENSE](LICENSE) for details.
+
+Data source: SUSEP AUTOSEG — Open Government Data (Dados Abertos).
