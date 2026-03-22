@@ -224,17 +224,17 @@ This pipeline uses **Databricks Unity Catalog Volumes** for storage —
 the modern, governance-ready alternative to legacy DBFS paths.
 
 ```
-Catalog  : project_pipeline_databricks
-Schema   : default
-Volume   : pipeline_databricks_project
+Catalog  : YOUR_CATALOG    # e.g. project_pipeline_databricks
+Schema   : YOUR_SCHEMA     # e.g. default
+Volume   : YOUR_VOLUME     # e.g. pipeline_databricks_project
 
 Source files:
-  /Volumes/.../PremReg.csv       ← uploaded from SUSEP AUTOSEG
-  /Volumes/.../SinReg.csv        ← uploaded from SUSEP AUTOSEG
+  /Volumes/{CATALOG}/{SCHEMA}/{VOLUME}/PremReg.csv       ← uploaded from SUSEP AUTOSEG
+  /Volumes/{CATALOG}/{SCHEMA}/{VOLUME}/SinReg.csv        ← uploaded from SUSEP AUTOSEG
 
 Bronze output:
-  /Volumes/.../bronze/premios/   ← Delta table, partitioned by semestre
-  /Volumes/.../bronze/sinistros/ ← Delta table, partitioned by semestre
+  /Volumes/{CATALOG}/{SCHEMA}/{VOLUME}/bronze/premios/   ← Delta table, partitioned by semestre
+  /Volumes/{CATALOG}/{SCHEMA}/{VOLUME}/bronze/sinistros/ ← Delta table, partitioned by semestre
 ```
 
 Unity Catalog Volumes provide fine-grained access control, data lineage,

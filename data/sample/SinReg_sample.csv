@@ -1,0 +1,10 @@
+regiao;descricao;tipo_sin;numSinistros;indenizacoes
+01;RS - Met. Porto Alegre e Caxias do Sul;APP;25;286091
+01;RS - Met. Porto Alegre e Caxias do Sul;CASCO;96692;380475827
+01;RS - Met. Porto Alegre e Caxias do Sul;RCDM;43210;67543210
+04;SC - Oeste;APP;12;143200
+04;SC - Oeste;CASCO;41234;156789012
+04;SC - Oeste;RCDM;18900;45678901
+38;DF - Brasília;APP;31;412300
+38;DF - Brasília;CASCO;54321;298765432
+38;DF - Brasília;RCDM;24567;75904085

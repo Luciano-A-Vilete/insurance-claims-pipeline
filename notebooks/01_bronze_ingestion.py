@@ -21,8 +21,8 @@
 # MAGIC **Source:** SUSEP AUTOSEG — https://dados.gov.br/dataset/dados-estatisticos-do-seguro-de-automoveis-autoseg
 # MAGIC
 # MAGIC **Output:**
-# MAGIC - `/Volumes/project_pipeline_databricks/default/pipeline_databricks_project/bronze/premios/`
-# MAGIC - `/Volumes/project_pipeline_databricks/default/pipeline_databricks_project/bronze/sinistros/`
+# MAGIC - `/Volumes/{CATALOG}/{SCHEMA}/{VOLUME}/bronze/premios/`
+# MAGIC - `/Volumes/{CATALOG}/{SCHEMA}/{VOLUME}/bronze/sinistros/`
 
 # COMMAND ----------
 # MAGIC %md
@@ -36,13 +36,24 @@ from delta.tables import DeltaTable
 
 # ── Semestre reference (format: YYYYSn) ───────────────────────────────────────
 # Change this to match the period of the files you downloaded from SUSEP
-SEMESTRE = "2019S2"
+# Example: "2019S2" = second semester of 2019
+SEMESTRE = "YOUR_SEMESTRE"   # e.g. "2019S2"
 
-# ── Paths (DBFS — Databricks Community Edition) ───────────────────────────────
-PREM_SOURCE = "/Volumes/project_pipeline_databricks/default/pipeline_databricks_project/PremReg.csv"
-SIN_SOURCE  = "/Volumes/project_pipeline_databricks/default/pipeline_databricks_project/SinReg.csv"
-BRONZE_PREM = "/Volumes/project_pipeline_databricks/default/pipeline_databricks_project/bronze/premios/"
-BRONZE_SIN  = "/Volumes/project_pipeline_databricks/default/pipeline_databricks_project/bronze/sinistros/"
+# ── Unity Catalog coordinates ─────────────────────────────────────────────────
+# Replace with your own catalog, schema, and volume names
+CATALOG = "YOUR_CATALOG"     # e.g. "project_pipeline_databricks"
+SCHEMA  = "YOUR_SCHEMA"      # e.g. "default"
+VOLUME  = "YOUR_VOLUME"      # e.g. "pipeline_databricks_project"
+
+BASE = f"/Volumes/{CATALOG}/{SCHEMA}/{VOLUME}"
+
+# ── Source file paths ─────────────────────────────────────────────────────────
+PREM_SOURCE = f"{BASE}/PremReg.csv"
+SIN_SOURCE  = f"{BASE}/SinReg.csv"
+
+# ── Bronze output paths ───────────────────────────────────────────────────────
+BRONZE_PREM = f"{BASE}/bronze/premios/"
+BRONZE_SIN  = f"{BASE}/bronze/sinistros/"
 
 print(f"Semestre      : {SEMESTRE}")
 print(f"Prêmios source: {PREM_SOURCE}")
