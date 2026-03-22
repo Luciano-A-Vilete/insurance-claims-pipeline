@@ -33,10 +33,6 @@ demonstrate the full end-to-end pattern in a reproducible, documented way.
 
 ```
 
-![Architecture](architecture/diagram.svg)
-
-```
-
 ┌─────────────────────────────────────────────────────────────────┐
 │                    MEDALLION ARCHITECTURE                        │
 ├──────────────┬──────────────────┬──────────────┬───────────────┤
